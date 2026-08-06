@@ -344,7 +344,7 @@ MonoBehaviour:
   - {fileID: 984676783}
   - {fileID: 505822476}
   - {fileID: 1258069390}
-  maxSimultaneousAttackers: 3
+  maxSimultaneousAttackers: 2
 --- !u!1 &952108792
 GameObject:
   m_ObjectHideFlags: 0
