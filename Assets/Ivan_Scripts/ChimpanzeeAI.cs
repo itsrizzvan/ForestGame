@@ -2,179 +2,219 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
-[RequireComponent(typeof(NavMeshAgent))]
-[RequireComponent(typeof(Animator))]
+[RequireComponent(typeof(NavMeshAgent), typeof(Animator))]
 public class ChimpanzeeAI : MonoBehaviour
 {
-    [Header("Detection Settings")]
-    public bool canUseDetectionState = true;
-    public float detectionRadius = 8.0f;
+    [Header("Settings & Targets")]
+    public float detectionRadius = 8f;
     public float attackRange = 2.0f;
-    public float rotationSpeed = 8.0f; // Smooth turn speed
-
-    [Header("References")]
+    public float watchDistance = 5.0f;
+    public float rotationSpeed = 8f;
     public Transform playerTransform;
 
     private NavMeshAgent agent;
-    private Animator animator;
+    private Animator anim;
     private WaveManager waveManager;
-    
-    private bool isPlayerDetected = false;
-    private bool isAttacking = false;
 
-    // Diversity parameters
-    private int assignedIdleIndex = 1;
-    private int assignedDetectIndex = 1;
-    private int assignedRunIndex = 1;
-    private int lastAttackChoice = 0;
+    private bool isDetected;
+    private bool isAttacking;
+    private bool hasPermission;
+    private float cooldownTimer;
+    private float offsetAngle;
 
-    public void Initialize(WaveManager manager, int spawnIndex)
+    private enum State { Waiting, Retreating, Attacking }
+    private State currentState = State.Waiting;
+    private Vector3 targetWatchPos;
+
+    public void Initialize(WaveManager manager, int spawnIdx)
     {
         waveManager = manager;
-
-        // Force opposite animation sets for small groups (Chimp 0 gets Set 1, Chimp 1 gets Set 2)
-        assignedIdleIndex = (spawnIndex % 2 == 0) ? 1 : 2;
-        assignedDetectIndex = (spawnIndex % 2 == 0) ? 1 : 2;
-        assignedRunIndex = (spawnIndex % 2 == 0) ? 1 : 2;
-
-        // Desynchronize detection logic: One plays detect anim, the next charges immediately
-        if (spawnIndex % 2 != 0)
-        {
-            canUseDetectionState = !canUseDetectionState;
-        }
+        // Distribute watch positions in a ring around the player
+        offsetAngle = spawnIdx * (360f / Mathf.Max(1, manager.totalChimpanzeesToSpawn)) + Random.Range(-20f, 20f);
     }
 
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
-        animator = GetComponent<Animator>();
+        anim = GetComponent<Animator>();
 
-        if (playerTransform == null)
+        if (!playerTransform)
             playerTransform = GameObject.FindGameObjectWithTag("Player")?.transform;
 
-        // Add speed variation so two chimps don't move at identical rates
-        agent.speed = Random.Range(3.6f, 4.3f);
-        animator.speed = Random.Range(0.92f, 1.08f);
-
-        animator.SetInteger("IdleIndex", assignedIdleIndex);
+        agent.speed = Random.Range(3.8f, 4.4f);
+        agent.stoppingDistance = 0.5f;
+        anim.speed = Random.Range(0.95f, 1.1f);
     }
 
     void Update()
     {
-        if (playerTransform == null) return;
+        if (!playerTransform) return;
 
-        float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
+        float distToPlayer = Vector3.Distance(transform.position, playerTransform.position);
+        if (cooldownTimer > 0) cooldownTimer -= Time.deltaTime;
 
-        if (!isPlayerDetected && distanceToPlayer <= detectionRadius)
+        if (!isDetected && distToPlayer <= detectionRadius)
         {
-            TriggerDetection();
+            isDetected = true;
         }
 
-        if (isPlayerDetected && !isAttacking)
+        if (isDetected && !isAttacking)
         {
-            HandleChaseAndAttack(distanceToPlayer);
-        }
-    }
-
-    void TriggerDetection()
-    {
-        isPlayerDetected = true;
-
-        if (canUseDetectionState)
-        {
-            StartCoroutine(PlayDetectionRoutine());
-        }
-        else
-        {
-            StartRunning();
+            HandleCombatState(distToPlayer);
         }
     }
 
-    IEnumerator PlayDetectionRoutine()
+    void HandleCombatState(float distToPlayer)
     {
-        agent.isStopped = true;
-        agent.updateRotation = false; // Disable NavMesh rotation to handle smooth turning manually
-
-        animator.SetInteger("DetectIndex", assignedDetectIndex);
-        animator.SetBool("IsDetected", true);
-
-        float timer = 0f;
-        float duration = 1.2f;
-
-        // Smoothly rotate toward player while playing detection clip
-        while (timer < duration)
+        // 1. Request attack slot if available
+        if (!hasPermission && cooldownTimer <= 0 && waveManager)
         {
-            SmoothRotateTowardsPlayer();
-            timer += Time.deltaTime;
-            yield return null;
+            hasPermission = waveManager.RequestAttackPermission();
         }
 
-        animator.SetBool("IsDetected", false);
-        agent.updateRotation = true;
-        StartRunning();
-    }
-
-    void StartRunning()
-    {
-        agent.isStopped = false;
-        agent.updateRotation = true;
-        animator.SetInteger("RunIndex", assignedRunIndex);
-        animator.SetBool("IsRunning", true);
-    }
-
-    void HandleChaseAndAttack(float distance)
-    {
-        agent.SetDestination(playerTransform.position);
-
-        if (distance <= attackRange)
+        if (hasPermission)
         {
-            StartCoroutine(ExecuteAttack());
+            StartCoroutine(AttackSequenceRoutine());
+            return;
+        }
+
+        // 2. NON-ATTACKER / RETREAT & WATCH LOGIC
+        if (currentState == State.Retreating)
+        {
+            float distToTarget = Vector3.Distance(transform.position, targetWatchPos);
+
+            // If reached position OR blocked by another chimp collider (velocity ~ 0)
+            if (distToTarget <= 1.8f || (agent.hasPath && agent.velocity.sqrMagnitude < 0.05f))
+            {
+                EnterWaitingState();
+            }
+            else
+            {
+                // ONLY play running animation if ACTUALLY moving in world space
+                bool isPhysicallyMoving = agent.velocity.sqrMagnitude > 0.1f;
+                anim.SetBool("IsRunning", isPhysicallyMoving);
+            }
+        }
+        else // State.Waiting
+        {
+            EnterWaitingState();
+
+            // Re-calculate retreat point if player moves far away
+            if (distToPlayer > watchDistance + 3.5f || distToPlayer < watchDistance - 2.5f)
+            {
+                StartRetreating();
+            }
         }
     }
 
-    IEnumerator ExecuteAttack()
+    void EnterWaitingState()
     {
-        isAttacking = true;
+        currentState = State.Waiting;
         agent.isStopped = true;
         agent.updateRotation = false;
-        animator.SetBool("IsRunning", false);
 
-        // Alternate attack types per strike so the chimp doesn't repeat the same hit consecutively
-        int attackChoice = (lastAttackChoice == 1) ? 2 : 1;
-        lastAttackChoice = attackChoice;
+        // Force reset movement anims
+        anim.SetBool("IsRunning", false);
+        anim.SetBool("IsDetected", false);
 
-        if (attackChoice == 1)
-            animator.SetTrigger("Attack1");
-        else
-            animator.SetTrigger("Attack2");
+        RotateToPlayer();
+    }
 
-        float timer = 0f;
-        float duration = 1.4f;
+    void StartRetreating()
+    {
+        currentState = State.Retreating;
+        agent.isStopped = false;
+        agent.updateRotation = true;
 
-        while (timer < duration)
+        Vector3 dir = new Vector3(Mathf.Cos(offsetAngle), 0, Mathf.Sin(offsetAngle));
+        targetWatchPos = playerTransform.position + (dir * watchDistance);
+
+        agent.SetDestination(targetWatchPos);
+        anim.SetBool("IsRunning", true);
+        anim.SetBool("IsDetected", false);
+        anim.SetInteger("RunIndex", Random.Range(1, 3));
+    }
+
+    IEnumerator AttackSequenceRoutine()
+    {
+        isAttacking = true;
+        currentState = State.Attacking;
+
+        // TELEGRAPH / DETECT
+        agent.isStopped = true;
+        agent.updateRotation = false;
+        anim.SetBool("IsRunning", false);
+        anim.SetBool("IsDetected", true);
+        anim.SetInteger("DetectIndex", Random.Range(1, 3));
+
+        for (float t = 0; t < 0.9f; t += Time.deltaTime)
         {
-            // Only adjust rotation during the wind-up phase of the attack
-            if (timer < 0.4f)
-            {
-                SmoothRotateTowardsPlayer();
-            }
-            timer += Time.deltaTime;
+            RotateToPlayer();
             yield return null;
         }
 
-        agent.updateRotation = true;
+        // COMBO STRIKES (1, 2, or 3 random attacks)
+        int comboCount = Random.Range(1, 4);
+
+        for (int i = 0; i < comboCount; i++)
+        {
+            // CHARGE
+            agent.isStopped = false;
+            agent.updateRotation = true;
+            anim.SetBool("IsDetected", false);
+            anim.SetBool("IsRunning", true);
+            anim.SetInteger("RunIndex", Random.Range(1, 3));
+
+            while (Vector3.Distance(transform.position, playerTransform.position) > attackRange)
+            {
+                agent.SetDestination(playerTransform.position);
+                yield return null;
+            }
+
+            // STRIKE
+            agent.isStopped = true;
+            agent.updateRotation = false;
+            anim.SetBool("IsRunning", false);
+            anim.SetTrigger("Attack" + Random.Range(1, 3));
+
+            for (float t = 0; t < 1.1f; t += Time.deltaTime)
+            {
+                if (t < 0.35f) RotateToPlayer();
+                yield return null;
+            }
+
+            if (i < comboCount - 1)
+            {
+                yield return new WaitForSeconds(Random.Range(0.2f, 0.4f));
+            }
+        }
+
+        // RELEASE & RETREAT
+        if (hasPermission && waveManager)
+        {
+            waveManager.ReleaseAttackPermission();
+            hasPermission = false;
+        }
+
+        offsetAngle += Random.Range(40f, 120f);
+        cooldownTimer = Random.Range(2.5f, 5.0f);
         isAttacking = false;
-        StartRunning();
+
+        StartRetreating();
     }
 
-    void SmoothRotateTowardsPlayer()
+    void RotateToPlayer()
     {
-        Vector3 direction = (playerTransform.position - transform.position).normalized;
-        direction.y = 0;
-        if (direction != Vector3.zero)
+        Vector3 dir = Vector3.ProjectOnPlane(playerTransform.position - transform.position, Vector3.up).normalized;
+        if (dir != Vector3.zero)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(direction);
+            Quaternion targetRotation = Quaternion.LookRotation(dir);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
         }
+    }
+
+    void OnDestroy()
+    {
+        if (hasPermission && waveManager) waveManager.ReleaseAttackPermission();
     }
 }

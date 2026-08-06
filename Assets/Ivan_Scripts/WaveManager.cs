@@ -5,16 +5,16 @@ using UnityEngine;
 public class WaveManager : MonoBehaviour
 {
     [Header("Wave Settings")]
-    [Tooltip("Number of Chimpanzees to spawn for this level")]
-    public int totalChimpanzeesToSpawn = 2;
+    public int totalChimpanzeesToSpawn = 4;
     public GameObject chimpanzeePrefab;
     public Transform[] spawnPoints;
 
     [Header("Combat Coordination")]
-    [Tooltip("Max enemies allowed to strike the player simultaneously")]
-    public int maxSimultaneousAttackers = 1; 
-    private int currentAttackers = 0;
+    [Tooltip("Maximum simultaneous attackers allowed (Cap enforced at max 3)")]
+    [Range(1, 3)]
+    public int maxSimultaneousAttackers = 3;
 
+    private int activeAttackers = 0;
     private List<GameObject> activeEnemies = new List<GameObject>();
 
     void Start()
@@ -24,18 +24,25 @@ public class WaveManager : MonoBehaviour
 
     void SpawnWave()
     {
+        if (chimpanzeePrefab == null)
+        {
+            Debug.LogError("WaveManager: Chimpanzee Prefab is not assigned!");
+            return;
+        }
+
         for (int i = 0; i < totalChimpanzeesToSpawn; i++)
         {
-            Transform spawnPoint = spawnPoints[Random.Range(0, spawnPoints.Length)];
-            
-            Vector3 spawnPos = spawnPoint.position + new Vector3(Random.Range(-1.5f, 1.5f), 0, Random.Range(-1.5f, 1.5f));
-            
+            Vector3 basePosition = (spawnPoints != null && spawnPoints.Length > 0)
+                ? spawnPoints[Random.Range(0, spawnPoints.Length)].position
+                : transform.position;
+
+            Vector3 spawnPos = basePosition + new Vector3(Random.Range(-2f, 2f), 0f, Random.Range(-2f, 2f));
             GameObject enemy = Instantiate(chimpanzeePrefab, spawnPos, Quaternion.identity);
-            
+
             ChimpanzeeAI ai = enemy.GetComponent<ChimpanzeeAI>();
             if (ai != null)
             {
-                ai.Initialize(this,i);
+                ai.Initialize(this, i);
             }
 
             activeEnemies.Add(enemy);
@@ -44,9 +51,9 @@ public class WaveManager : MonoBehaviour
 
     public bool RequestAttackPermission()
     {
-        if (currentAttackers < maxSimultaneousAttackers)
+        if (activeAttackers < maxSimultaneousAttackers)
         {
-            currentAttackers++;
+            activeAttackers++;
             return true;
         }
         return false;
@@ -54,16 +61,14 @@ public class WaveManager : MonoBehaviour
 
     public void ReleaseAttackPermission()
     {
-        currentAttackers = Mathf.Max(0, currentAttackers - 1);
+        activeAttackers = Mathf.Max(0, activeAttackers - 1);
     }
 
     public void OnEnemyDied(GameObject enemy)
     {
-        activeEnemies.Remove(enemy);
-        if (activeEnemies.Count == 0)
+        if (activeEnemies.Contains(enemy))
         {
-            Debug.Log("Wave Cleared!");
-            // Trigger next wave or level progression logic here
+            activeEnemies.Remove(enemy);
         }
     }
 }

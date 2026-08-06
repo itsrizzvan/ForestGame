@@ -225,7 +225,7 @@ Transform:
   m_GameObject: {fileID: 140846644}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 38.75816, y: 1.48, z: 14.8842}
+  m_LocalPosition: {x: 14.18, y: 1.48, z: -18.31}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -344,7 +344,7 @@ MonoBehaviour:
   - {fileID: 984676783}
   - {fileID: 505822476}
   - {fileID: 1258069390}
-  maxSimultaneousAttackers: 2
+  maxSimultaneousAttackers: 3
 --- !u!1 &952108792
 GameObject:
   m_ObjectHideFlags: 0
