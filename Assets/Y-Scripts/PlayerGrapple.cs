@@ -6,6 +6,8 @@ public class PlayerGrapple : MonoBehaviour
 	[Header("Grapple Settings")]
 	public float grappleRange = 15f;
 	public LayerMask grappleLayer;
+	public float grappleCooldown = 2.0f; // <-- NEW
+	public float lastGrappleTime = -100f; // <-- NEW
 
 	[Header("Animation Settings")]
 	[Tooltip("Played when grappling from the ground")]
@@ -45,9 +47,9 @@ public class PlayerGrapple : MonoBehaviour
 
 		if (currentGrapplePoint != null)
 		{
-			// --- NEW: Check if we are in the air BEFORE the state changes! ---
-			bool isMidAir = (brain.currentState == PlayerBrain.PlayerState.Airborne) || !locomotion.IsGrounded();
+			lastGrappleTime = Time.time; // <-- NEW: Start the cooldown as soon as it connects!
 
+			bool isMidAir = (brain.currentState == PlayerBrain.PlayerState.Airborne) || !locomotion.IsGrounded();
 			StartCoroutine(GrappleRoutine(isMidAir));
 		}
 	}

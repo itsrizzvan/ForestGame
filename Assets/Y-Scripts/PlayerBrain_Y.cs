@@ -43,8 +43,8 @@ public class PlayerBrain : MonoBehaviour
 			case PlayerState.Moving:
 			case PlayerState.Sprinting:
 
-				// 1. Dash Check
-				if (input.DashTriggered && input.IsSprinting && input.MoveInput.magnitude >= 0.1f && currentState != PlayerState.Airborne)
+				// 1. Dash Check (Added cooldown check)
+				if (input.DashTriggered && input.IsSprinting && input.MoveInput.magnitude >= 0.1f && currentState != PlayerState.Airborne && Time.time >= locomotion.lastDashTime + locomotion.dashCooldown)
 				{
 					StartCoroutine(locomotion.DashRoutine());
 					return;
@@ -53,18 +53,19 @@ public class PlayerBrain : MonoBehaviour
 				// 2. Normal Movement
 				locomotion.HandleMovement(input.MoveInput, input.IsSprinting);
 
-				// 3. Jump Check
-				if (input.JumpTriggered && locomotion.IsGrounded() && Time.time > locomotion.lastJumpTime + 0.3f)
+				// 3. Jump Check (Replaced the hardcoded 0.3f with your inspector variable)
+				if (input.JumpTriggered && locomotion.IsGrounded() && Time.time > locomotion.lastJumpTime + locomotion.jumpCooldown)
 				{
 					locomotion.Jump();
 				}
 
-				if (input.GrappleTriggered)
+				// 4. Grapple Check - Ground (Added cooldown check)
+				if (input.GrappleTriggered && Time.time >= grapple.lastGrappleTime + grapple.grappleCooldown)
 				{
 					grapple.AttemptGrapple();
 				}
 
-				// 4. Combat Checks
+				// 5. Combat Checks
 				if (input.InputBufferTimer > 0 && Time.time >= combat.lastComboEndTime + combat.comboCooldown)
 				{
 					input.InputBufferTimer = 0f;
@@ -79,8 +80,8 @@ public class PlayerBrain : MonoBehaviour
 
 			case PlayerState.Airborne:
 
-				// --- NEW: Allow grappling while jumping or falling! ---
-				if (input.GrappleTriggered)
+				// --- NEW: Grapple Check - Air (Added cooldown check) ---
+				if (input.GrappleTriggered && Time.time >= grapple.lastGrappleTime + grapple.grappleCooldown)
 				{
 					grapple.AttemptGrapple();
 					return; // Exit out of the frame so movement doesn't override the grapple
