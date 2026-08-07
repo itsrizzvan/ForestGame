@@ -70,19 +70,41 @@ public class PlayerLocomotion : MonoBehaviour
 	}
 
 	public void ApplyGravity()
-	{
-		if (controller.isGrounded && velocity.y < 0)
-		{
-			velocity.y = -2f;
+    {
+        // --- NEW: Horizontal Friction System ---
+        // Separate the horizontal momentum from the vertical gravity
+        Vector3 horizontalVelocity = new Vector3(velocity.x, 0f, velocity.z);
+        
+        if (horizontalVelocity.magnitude > 0.1f)
+        {
+            // Use high friction (15f) when walking to stop quickly, and low friction (3f) in the air to allow for satisfying jumps/swings
+            float friction = controller.isGrounded ? 15f : 3f; 
+            horizontalVelocity = Vector3.Lerp(horizontalVelocity, Vector3.zero, friction * Time.deltaTime);
+            
+            // Apply the decayed velocity back to the main velocity vector
+            velocity.x = horizontalVelocity.x;
+            velocity.z = horizontalVelocity.z;
+        }
+        else
+        {
+            velocity.x = 0;
+            velocity.z = 0;
+        }
+        // ---------------------------------------
 
-			if (brain.currentState == PlayerBrain.PlayerState.Airborne)
-			{
-				brain.currentState = PlayerBrain.PlayerState.Idle;
-				animator.CrossFadeInFixedTime("Locomotion", 0.2f);
-			}
-		}
-		velocity.y += gravity * Time.deltaTime;
-	}
+        if (controller.isGrounded && velocity.y < 0)
+        {
+            velocity.y = -2f; 
+
+            if (brain.currentState == PlayerBrain.PlayerState.Airborne)
+            {
+                brain.currentState = PlayerBrain.PlayerState.Idle;
+                animator.CrossFadeInFixedTime("Locomotion", 0.2f);
+            }
+        }
+        
+        velocity.y += gravity * Time.deltaTime;
+    }
 
 	public void Jump()
 	{

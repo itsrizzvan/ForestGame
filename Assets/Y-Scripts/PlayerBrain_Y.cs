@@ -23,12 +23,14 @@ public class PlayerBrain : MonoBehaviour
 	private PlayerInputHandler input;
 	private PlayerLocomotion locomotion;
 	private PlayerCombat_Y combat;
+	private PlayerGrapple grapple;
 
 	void Awake()
 	{
 		input = GetComponent<PlayerInputHandler>();
 		locomotion = GetComponent<PlayerLocomotion>();
 		combat = GetComponent<PlayerCombat_Y>();
+		grapple = GetComponent<PlayerGrapple>();
 	}
 
 	void Update()
@@ -55,6 +57,11 @@ public class PlayerBrain : MonoBehaviour
 				if (input.JumpTriggered && locomotion.IsGrounded() && Time.time > locomotion.lastJumpTime + 0.3f)
 				{
 					locomotion.Jump();
+				}
+
+				if (input.GrappleTriggered)
+				{
+					grapple.AttemptGrapple();
 				}
 
 				// 4. Combat Checks
