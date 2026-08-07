@@ -78,6 +78,15 @@ public class PlayerBrain : MonoBehaviour
 				break;
 
 			case PlayerState.Airborne:
+
+				// --- NEW: Allow grappling while jumping or falling! ---
+				if (input.GrappleTriggered)
+				{
+					grapple.AttemptGrapple();
+					return; // Exit out of the frame so movement doesn't override the grapple
+				}
+				// ------------------------------------------------------
+
 				locomotion.HandleMovement(input.MoveInput, input.IsSprinting);
 				break;
 
