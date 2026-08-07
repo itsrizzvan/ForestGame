@@ -4,7 +4,7 @@ using UnityEngine.SceneManagement;
 public class tutorialtolevel1 : MonoBehaviour
 {
     [Header("Transition Settings")]
-    [SerializeField] private string nextSceneName = "Yash_Shader";
+    [SerializeField] private string nextSceneName = "LevlDesignOne";
     [SerializeField] private float fadeDuration = 0.8f;
 
     // Prevents the trigger from firing multiple times while the fade is happening
