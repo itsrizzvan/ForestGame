@@ -12,15 +12,12 @@ public class PlayerLocomotion : MonoBehaviour
 	public float sprintSpeed = 15f;
 	public float dashSpeed = 25f;
 	public float dashDuration = 0.3f;
-	public float dashCooldown = 1.5f; // <-- NEW
-	public float lastDashTime = -100f; // <-- NEW: Starts negative so you can dash immediately
 
 	[Header("Movement Settings")]
 	public float moveSpeed = 8f;
 	public float turnSpeed = 15f;
 	public float gravity = -9.81f;
 	public float jumpHeight = 2.5f;
-	public float jumpCooldown = 0.5f; // <-- NEW
 
 	public Vector3 velocity;
 	public float lastJumpTime = 0f;
@@ -119,8 +116,6 @@ public class PlayerLocomotion : MonoBehaviour
 
 	public IEnumerator DashRoutine()
 	{
-		lastDashTime = Time.time; // <-- NEW: Record the exact time the dash started
-
 		brain.currentState = PlayerBrain.PlayerState.Dashing;
 		animator.CrossFadeInFixedTime("Dash", 0.05f);
 

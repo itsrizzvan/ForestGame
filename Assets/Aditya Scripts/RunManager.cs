@@ -34,11 +34,13 @@ public class RunManager : MonoBehaviour
     {
         deathCount++;
         Debug.Log($"Player Died! Total Deaths: {deathCount}");
+        RunManager.Instance.RegisterPlayerDeath();
     }
 
     public void AdvanceLevel()
     {
         currentLevel++;
         Debug.Log($"Advanced to Level {currentLevel}");
+
     }
 }

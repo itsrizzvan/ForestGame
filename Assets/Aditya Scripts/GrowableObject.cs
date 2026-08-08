@@ -3,25 +3,29 @@ using UnityEngine;
 public class GrowableObject : MonoBehaviour, IGrowable
 {
     [Header("Growth Stages")]
-    [Tooltip("Stage 0 = 0 Deaths, Stage 1 = 1-2 Deaths, Stage 2 = 3+ Deaths")]
     public GameObject[] stageVisuals; 
 
     [Header("Unlocks")]
-    public GameObject grapplePoint; // Enable grapple node when grown
+    public GameObject grapplePoint; 
 
     public void UpdateGrowth(int deathCount)
     {
-        // Figure out which stage to display based on death count
-        int activeStage = Mathf.Clamp(deathCount, 0, stageVisuals.Length - 1);
+        // Explicitly map death count ranges to stages
+        int activeStage = 0;
+        if (deathCount >= 3) activeStage = 2;      // 3+ Deaths -> Stage 2
+        else if (deathCount >= 1) activeStage = 1; // 1-2 Deaths -> Stage 1
+        else activeStage = 0;                      // 0 Deaths -> Stage 0
 
-        // Turn off all stages, then turn on only the active one
+        // Clamp just in case stageVisuals has fewer elements than activeStage
+        activeStage = Mathf.Min(activeStage, stageVisuals.Length - 1);
+
+        // Turn off all stages, enable ONLY the target stage
         for (int i = 0; i < stageVisuals.Length; i++)
         {
             if (stageVisuals[i] != null)
-                stageVisuals[i].SetActive(i == activeStage);
+                stageVisuals[i].SetActive(i <= activeStage);
         }
 
-        // Enable grapple point if stage 1 or higher
         if (grapplePoint != null)
         {
             grapplePoint.SetActive(activeStage > 0);
